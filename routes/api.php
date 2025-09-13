@@ -30,6 +30,7 @@ Route::get("guest/news", [NewsController::class, "get"]);
 Route::match(["GET", "POST"], "/get-products", [ProductController::class, "get"]);
 Route::get("/get-discounts", [DiscountController::class, "get"]);
 Route::get("/get-discount-by-code/{code}", [DiscountController::class, "get_by_code"]);
+Route::get("/guest/product/{id}", [ProductController::class, "getById"]);
 
 Route::middleware(['auth:user'])->group(function () {
     Route::get("/user-by-token", [UserController::class, "getByToken"]);
