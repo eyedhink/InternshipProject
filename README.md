@@ -1,2 +1,2 @@
 # InternshipProject
-E-Commerce SPA
+E-Commerce API
