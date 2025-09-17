@@ -13,7 +13,7 @@ class NewsController extends Controller
     {
         $news = News::query()->findOrFail($id);
         $validated = $request->validate([
-            'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif,svg',
+            'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif,svg,webp',
             'title' => 'sometimes|string',
             'text' => 'sometimes|string',
             'is_important' => 'boolean',
@@ -33,7 +33,7 @@ class NewsController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg',
+            'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg,webp',
             'title' => 'required|string',
             'text' => 'required|string',
             'is_important' => 'boolean',

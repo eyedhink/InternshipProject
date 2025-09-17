@@ -12,31 +12,40 @@ class SlideController extends Controller
     public function update(string $id, Request $request)
     {
         $slide = Slide::query()->findOrFail($id);
+
         $validated = $request->validate([
-            'image_url' => 'sometimes|image|mimes:jpeg,png,jpg,gif,svg',
+            'image_url' => 'sometimes|image|mimes:jpeg,png,jpg,gif,svg,webp',
             'title' => 'sometimes|string|nullable',
             'subtitle' => 'sometimes|string|nullable',
             'link' => 'sometimes|string|nullable',
             'order' => 'sometimes|integer',
             'is_active' => 'sometimes|boolean',
         ]);
+
+        // Handle file upload properly
         if ($request->hasFile('image_url')) {
+            // Delete old image first
             if ($slide->image_url && Storage::disk('public')->exists($slide->image_url)) {
                 Storage::disk('public')->delete($slide->image_url);
             }
 
-            $validated['image_url'] = $request->file('image_url')->store('slides', 'public');
+            // Store new image with correct path handling
+            $imagePath = $request->file('image_url')->store('slides', 'public');
+            $validated['image_url'] = $imagePath; // This should be the relative path
         }
 
-        $slide->update($request->only(array_keys($validated)));
+        $slide->update($validated);
 
-        return response()->json(SlideResource::make($slide));
+        return response()->json([
+            'data' => SlideResource::make($slide),
+            'image_url' => $slide->image_url ? Storage::url($slide->image_url) : null
+        ]);
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'image_url' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'image_url' => 'required|image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
             'title' => 'sometimes|string|max:255',
             'subtitle' => 'sometimes|string|max:255',
             'link' => 'sometimes|string|max:255',

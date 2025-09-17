@@ -43,7 +43,7 @@ class SettingsController extends Controller
     {
         $validated = $request->validate([
             'text' => 'sometimes|string',
-            'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif,svg',
+            'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif,svg,webp',
         ]);
         if ($request->has('text')) {
             Settings::query()->updateOrCreate(

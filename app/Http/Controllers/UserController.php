@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\UserResource;
-use App\Models\Cart;
+use App\Models\History;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -64,10 +64,6 @@ class UserController extends Controller
             'email_verified_at' => Null,
             'should_change_password' => true,
         ]);
-
-        Cart::query()->create([
-            'user_id' => $user->id,
-        ]);
         return response()->json(UserResource::make($user));
     }
 
@@ -125,9 +121,17 @@ class UserController extends Controller
             'name' => 'sometimes|string',
             'email' => 'sometimes|string|email|unique:users',
             'phone_number' => 'sometimes|string',
+            'wallet_balance' => 'sometimes|integer',
         ]);
         if (!$user) {
             return response()->json(["error" => "User not found"], 401);
+        }
+        if (isset($validated['wallet_balance'])) {
+            History::query()->create([
+                "user_id" => $user->id,
+                "amount" => abs($validated['wallet_balance'] - $user->wallet_balance),
+                "action" => $validated['wallet_balance'] > $user->wallet_balance ? "increase" : "decrease",
+            ]);
         }
         $user->update($validated);
         return response()->json(UserResource::make($user));
@@ -157,7 +161,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'search' => 'sometimes|string',
         ]);
-        $query = User::with('addresses', 'carts', 'history');
+        $query = User::with('addresses', 'cart', 'history');
         if (isset($validated['search'])) {
             $query = $query->where('name', 'like', '%' . $validated['search'] . '%');
         }
@@ -167,7 +171,7 @@ class UserController extends Controller
 
     public function get_by_id(string $id)
     {
-        $user = User::with('addresses', 'carts', 'history')->findOrFail($id);
+        $user = User::with('addresses', 'cart', 'history')->findOrFail($id);
         return response()->json(UserResource::make($user));
     }
 }
