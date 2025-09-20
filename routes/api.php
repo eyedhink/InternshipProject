@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminLogController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ContactController;
@@ -55,6 +56,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::put("/update-category/{id}", [CategoryController::class, "update"]);
     Route::get("/get-category-by-id/{id}", [CategoryController::class, "getById"]);
     Route::post("/get-categories", [CategoryController::class, "get"]);
+    Route::delete("/delete-category/{id}", [CategoryController::class, "destroy"]);
     Route::match(['post', 'options'], "/create-product", [ProductController::class, "store"]);
     Route::match(['post', 'options'], "/update-product/{id}", [ProductController::class, "update"]);
     Route::delete("/soft-delete-product/{id}", [ProductController::class, "softDelete"]);
@@ -81,13 +83,16 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::post("/update-news/{id}", [NewsController::class, "update"]);
     Route::get("/news", [NewsController::class, "get"]);
     Route::get("/get-news/{id}", [NewsController::class, "get_by_id"]);
+    Route::delete("/delete-news/{id}", [NewsController::class, "destroy"]);
     Route::get('/admin/contact-us', [ContactController::class, "get"]);
     Route::get('/admin/get-contact-us/{id}', [ContactController::class, "get_by_id"]);
     Route::put("/update-contact-us", [SettingsController::class, "update_contact_us"]);
-    Route::post("/update-about-us", [SettingsController::class, "update_about_us"]);
+    Route::match(["PUT", "POST"], "/update-about-us", [SettingsController::class, "update_about_us"]);
     Route::post("/create-slide", [SlideController::class, "store"]);
     Route::put("/update-slide/{id}", [SlideController::class, "update"]);
     Route::delete("/delete-slide/{id}", [SlideController::class, "destroy"]);
     Route::get("/get-slide/{id}", [SlideController::class, "getById"]);
     Route::get("/get-slides", [SlideController::class, "get"]);
+    Route::get('/admin/logs', [AdminLogController::class, "get"]);
+    Route::get('/admin/log/{id}', [AdminLogController::class, "get_by_id"]);
 });

@@ -10,7 +10,7 @@ return new class extends Migration {
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
             $table->json('info');
-            $table->timestamp('order_submitted_at')->nullable();
+            $table->bigInteger('date')->nullable();
             $table->timestamps();
         });
     }

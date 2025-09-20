@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\ProductResource;
+use App\Models\AdminLogs;
 use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
@@ -39,6 +40,9 @@ class ProductController extends Controller
             }
         }
 
+        $old_stock = $product->stock;
+        $old_before_discount_price = $product->before_discount_price;
+        $old_discount_percentage = $product->discount_percentage;
         $product->update($validated);
 
         foreach ($oldImages as $field => $oldImagePath) {
@@ -48,6 +52,56 @@ class ProductController extends Controller
         }
 
         $product->load("subcategory");
+
+        // Log
+        if (isset($validated["stock"]) && $validated["stock"] != $old_stock) {
+            AdminLogs::query()->create([
+                "type" => "inventory_changes",
+                "action" => $validated["stock"] >= $old_stock ? "add_stock" : "remove_stock",
+                "data" => [
+                    "product_id" => $product->id,
+                    "stock" => $validated["stock"],
+                    "quantity" => abs($validated["stock"] - $old_stock),
+                    "timestamp" => time()
+                ]
+            ]);
+        }
+        if (isset($validated["before_discount_price"]) && $validated["before_discount_price"] != $old_before_discount_price) {
+            AdminLogs::query()->create([
+                "type" => "inventory_changes",
+                "action" => $validated["before_discount_price"] >= $old_before_discount_price ? "increase_price" : "decrease_price",
+                "data" => [
+                    "product_id" => $product->id,
+                    "before_discount_price" => $validated["before_discount_price"],
+                    "amount" => abs($validated["before_discount_price"] - $old_before_discount_price),
+                    "timestamp" => time()
+                ]
+            ]);
+        }
+        if (isset($validated["discount_percentage"]) && $validated["discount_percentage"] != $old_discount_percentage) {
+            AdminLogs::query()->create([
+                "type" => "inventory_changes",
+                "action" => $validated["discount_percentage"] >= $old_discount_percentage ? "increase_discount" : "decrease_discount",
+                "data" => [
+                    "product_id" => $product->id,
+                    "discount_percentage" => $validated["discount_percentage"],
+                    "amount" => abs($validated["discount_percentage"] - $old_discount_percentage),
+                    "timestamp" => time()
+                ]
+            ]);
+        }
+
+        // Log
+        AdminLogs::query()->create([
+            "type" => "administrative_actions",
+            "action" => "product_modification",
+            "data" => [
+                "product_id" => $product->id,
+                "changes" => $validated,
+                "timestamp" => time()
+            ]
+        ]);
+
         return response()->json(ProductResource::make($product));
     }
 
@@ -91,12 +145,35 @@ class ProductController extends Controller
         $product = Product::query()->create($validated);
 
         $product->load("subcategory");
+
+        // Log
+        AdminLogs::query()->create([
+            "type" => "administrative_actions",
+            "action" => "product_addition",
+            "data" => [
+                "product_id" => $product->id,
+                "timestamp" => time()
+            ]
+        ]);
+
         return response()->json(ProductResource::make($product));
     }
 
     public function softDelete(string $id)
     {
         $product = Product::query()->findOrFail($id);
+
+        // Log
+        AdminLogs::query()->create([
+            "type" => "inventory_changes",
+            "action" => "status_change",
+            "data" => [
+                "product_id" => $product->id,
+                "status" => "Inactive",
+                "timestamp" => time()
+            ]
+        ]);
+
         $product->delete();
         return response()->json(["message" => "Product has been soft deleted"]);
     }
@@ -104,6 +181,18 @@ class ProductController extends Controller
     public function restore(string $id)
     {
         $product = Product::withTrashed()->findOrFail($id);
+
+        // Log
+        AdminLogs::query()->create([
+            "type" => "inventory_changes",
+            "action" => "status_change",
+            "data" => [
+                "product_id" => $product->id,
+                "status" => "Active",
+                "timestamp" => time()
+            ]
+        ]);
+
         $product->restore();
         return response()->json(["message" => "Product has been restored"]);
     }
@@ -120,6 +209,17 @@ class ProductController extends Controller
                 Storage::disk('public')->delete($oldImagePath);
             }
         }
+
+        // Log
+        AdminLogs::query()->create([
+            "type" => "administrative_actions",
+            "action" => "product_deletion",
+            "data" => [
+                "product_id" => $product->id,
+                "timestamp" => time()
+            ]
+        ]);
+
         $product->forceDelete();
         return response()->json(["message" => "Product has been permanently deleted"]);
     }

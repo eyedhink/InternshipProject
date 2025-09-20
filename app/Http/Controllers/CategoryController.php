@@ -60,4 +60,11 @@ class CategoryController extends Controller
 
         return response()->json(CategoryResource::collection($categories));
     }
+
+    function destroy(string $id)
+    {
+        $category = Category::query()->find($id);
+        $category->delete();
+        return response()->json(["message" => "Category deleted successfully"]);
+    }
 }

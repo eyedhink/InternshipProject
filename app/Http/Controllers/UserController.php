@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\UserResource;
+use App\Models\AdminLogs;
 use App\Models\History;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -37,6 +38,19 @@ class UserController extends Controller
             ]);
         }
 
+        // Log
+        AdminLogs::query()->create([
+            "type" => "user_activity",
+            "action" => "login",
+            "data" => [
+                "user_id" => $user->id,
+                "user_name" => $user->name,
+                "email" => $user->email,
+                "phone" => $user->phone_number,
+                "timestamp" => time(),
+            ]
+        ]);
+
         return response()->json([
             'token' => $user->createToken('user-token')->plainTextToken
         ]);
@@ -64,6 +78,19 @@ class UserController extends Controller
             'email_verified_at' => Null,
             'should_change_password' => true,
         ]);
+
+        // Log
+        AdminLogs::query()->create([
+            "type" => "user_activity",
+            "action" => "signup",
+            "data" => [
+                "user_id" => $user->id,
+                "user_name" => $user->name,
+                "email" => $user->email,
+                "phone" => $user->phone_number,
+                "timestamp" => time(),
+            ]
+        ]);
         return response()->json(UserResource::make($user));
     }
 
@@ -81,6 +108,19 @@ class UserController extends Controller
 
         $user->email_verified_at = now();
         $user->save();
+
+        // Log
+        AdminLogs::query()->create([
+            "type" => "user_activity",
+            "action" => "verify_email",
+            "data" => [
+                "user_id" => $user->id,
+                "user_name" => $user->name,
+                "email" => $user->email,
+                "phone" => $user->phone_number,
+                "timestamp" => time(),
+            ]
+        ]);
 
         return response()->json(["message" => "Email verified successfully"]);
     }
@@ -106,11 +146,33 @@ class UserController extends Controller
             'email' => 'sometimes|string|email|unique:users',
             'phone_number' => 'sometimes|string',
         ]);
+        $old_name = $user->name;
+        $old_email = $user->email;
+        $old_phone_number = $user->phone_number;
         $user->update($validated);
-        if ($validated['email']) {
+        if (isset($validated['email'])) {
             $user->email_verified_at = Null;
             $user->save();
         }
+
+        // Log
+        AdminLogs::query()->create([
+            "type" => "user_activity",
+            "action" => "update_info",
+            "data" => [
+                "user_id" => $user->id,
+                "user_name" => $user->name,
+                "email" => $user->email,
+                "phone" => $user->phone_number,
+                "old_data" => [
+                    "name" => $old_name,
+                    "email" => $old_email,
+                    "phone" => $old_phone_number,
+                ],
+                "timestamp" => time(),
+            ]
+        ]);
+
         return response()->json(UserResource::make($user));
     }
 
@@ -127,11 +189,24 @@ class UserController extends Controller
             return response()->json(["error" => "User not found"], 401);
         }
         if (isset($validated['wallet_balance'])) {
-            History::query()->create([
-                "user_id" => $user->id,
-                "amount" => abs($validated['wallet_balance'] - $user->wallet_balance),
-                "action" => $validated['wallet_balance'] > $user->wallet_balance ? "increase" : "decrease",
+            // Log
+            AdminLogs::query()->create([
+                "type" => "financial_transactions",
+                "action" => "wallet_balance_change",
+                "data" => [
+                    "user_id" => $user->id,
+                    "amount" => abs($validated['wallet_balance'] - $user->wallet_balance),
+                    "change" => $validated['wallet_balance'] > $user->wallet_balance ? "increase" : "decrease",
+                    "timestamp" => time()
+                ]
             ]);
+            if ($validated['wallet_balance'] != $user->wallet_balance) {
+                History::query()->create([
+                    "user_id" => $user->id,
+                    "amount" => abs($validated['wallet_balance'] - $user->wallet_balance),
+                    "action" => $validated['wallet_balance'] > $user->wallet_balance ? "increase" : "decrease",
+                ]);
+            }
         }
         $user->update($validated);
         return response()->json(UserResource::make($user));
@@ -153,6 +228,20 @@ class UserController extends Controller
         $user->password = Hash::make($validated['new_password']);
         $user->should_change_password = false;
         $user->save();
+
+        // Log
+        AdminLogs::query()->create([
+            "type" => "user_activity",
+            "action" => "change_password",
+            "data" => [
+                "user_id" => $user->id,
+                "user_name" => $user->name,
+                "email" => $user->email,
+                "phone" => $user->phone_number,
+                "timestamp" => time(),
+            ]
+        ]);
+
         return response()->json(UserResource::make($user));
     }
 

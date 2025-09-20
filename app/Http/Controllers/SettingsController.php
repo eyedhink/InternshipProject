@@ -2,9 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\CategoryResource;
 use App\Http\Resources\SettingsResource;
-use App\Models\Category;
 use App\Models\Settings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -79,7 +77,6 @@ class SettingsController extends Controller
     public function sub_info()
     {
         $contact_us = SettingsResource::collection(Settings::query()->where('key', "LIKE", 'contact_us%')->get());
-        $categories = CategoryResource::collection(Category::with('subCategories', 'parent')->get());
-        return response()->json(['contact_us' => $contact_us, 'categories' => $categories]);
+        return response()->json(['contact_us' => $contact_us]);
     }
 }

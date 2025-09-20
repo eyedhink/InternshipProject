@@ -6,6 +6,7 @@ use App\Http\Resources\CartResource;
 use App\Http\Resources\OrderResource;
 use App\Http\Resources\ProductResource;
 use App\Models\Address;
+use App\Models\AdminLogs;
 use App\Models\Cart;
 use App\Models\Discount;
 use App\Models\History;
@@ -97,13 +98,6 @@ class CartController extends Controller
             $validated = $request->validate([
                 'discount_code' => 'required|exists:discounts,code'
             ]);
-
-            $user = $request->user('sanctum');
-            $cartItems = $user->cart;
-
-            if ($cartItems->isEmpty()) {
-                return response()->json(['error' => 'Cart not found'], 404);
-            }
 
             $discount = Discount::query()->where('code', $validated["discount_code"])->first();
 
@@ -295,7 +289,7 @@ class CartController extends Controller
 
             $order = Order::query()->create([
                 'info' => $orderInfo,
-                'order_submitted_at' => now()
+                'date' => time()
             ]);
 
             foreach ($cartItems as $item) {
@@ -304,6 +298,17 @@ class CartController extends Controller
                 $product->sold_count += $item->quantity;
                 $product->save();
 
+                // Log
+                AdminLogs::query()->create([
+                    "type" => "inventory_changes",
+                    "action" => "remove_stock",
+                    "data" => [
+                        "product_id" => $product->id,
+                        "quantity" => $item->quantity,
+                        "stock" => $product->stock
+                    ]
+                ]);
+
                 if ($product->stock < 1) {
                     $product->delete();
                 }
@@ -311,15 +316,42 @@ class CartController extends Controller
 
             if ($validated['payment_method'] === 'wallet') {
                 $user->wallet_balance -= $total_amount;
-                $user->save();
 
-                History::query()->create([
-                    "user_id" => $user->id,
-                    "amount" => $total_amount,
+                // Log
+                AdminLogs::query()->create([
+                    "type" => "financial_transactions",
+                    "action" => "payment_processing",
+                    "data" => [
+                        "user_id" => $user->id,
+                        "amount" => $total_amount,
+                        "payment_method" => $validated['payment_method'],
+                        "timestamp" => time()
+                    ]
                 ]);
+
+                $user->save();
+                if ($total_amount != 0) {
+                    History::query()->create([
+                        "user_id" => $user->id,
+                        "amount" => $total_amount,
+                    ]);
+                }
             }
 
             $user->cart()->delete();
+
+            AdminLogs::query()->create([
+                "type" => "order_processing",
+                "action" => "submit_order",
+                "data" => [
+                    "user_id" => $user->id,
+                    "amount" => $total_amount,
+                    "payment_method" => $validated['payment_method'],
+                    "info" => $order->info,
+                    "timestamp" => time()
+                ]
+            ]);
+
 
             return response()->json([
                 "message" => "Order submitted successfully",
@@ -362,39 +394,39 @@ class CartController extends Controller
 
     public function get_orders_admin(Request $request)
     {
-        try {
-            $validated = $request->validate([
-                'from_created_at' => 'sometimes|string',
-                'to_created_at' => 'sometimes|string',
-                'user_id' => 'sometimes|integer|exists:users,id',
-                'status' => 'sometimes|string|in:processing,shipped',
-            ]);
+//        try {
+        $validated = $request->validate([
+            'from_created_at' => 'sometimes|integer:',
+            'to_created_at' => 'sometimes|integer:',
+            'user_id' => 'sometimes|integer|exists:users,id',
+            'status' => 'sometimes|string|in:processing,shipped',
+        ]);
 
-            $query = Order::query();
+        $query = Order::query();
 
-            if ($request->has('from_created_at') && !empty($validated["from_created_at"])) {
-                $query->where('order_submitted_at', '>=', $validated["from_created_at"]);
-            }
-
-            if ($request->has('to_created_at') && !empty($validated["to_created_at"])) {
-                $query->where('order_submitted_at', '<=', $validated["to_created_at"]);
-            }
-
-            if ($request->has('user_id') && !empty($validated["user_id"])) {
-                $query->whereRaw('JSON_EXTRACT(info, "$.user.id") = ?', [$validated["user_id"]]);
-            }
-
-            if ($request->has('status') && !empty($validated["status"])) {
-                $query->whereRaw('JSON_EXTRACT(info, "$.status") = ?', [$validated["status"]]);
-            }
-
-            $orders = $query->get();
-
-            return response()->json(OrderResource::collection($orders));
-        } catch (Exception $e) {
-            Log::error('Get orders admin error: ' . $e->getMessage());
-            return response()->json(['error' => 'Server error'], 500);
+        if ($request->has('from_created_at') && !empty($validated["from_created_at"])) {
+            $query->where('date', '>=', $validated["from_created_at"]);
         }
+
+        if ($request->has('to_created_at') && !empty($validated["to_created_at"])) {
+            $query->where('date', '<=', $validated["to_created_at"]);
+        }
+
+        if ($request->has('user_id') && !empty($validated["user_id"])) {
+            $query->whereRaw('JSON_EXTRACT(info, "$.user.id") = ?', [$validated["user_id"]]);
+        }
+
+        if ($request->has('status') && !empty($validated["status"])) {
+            $query->whereRaw('JSON_EXTRACT(info, "$.status") = ?', [$validated["status"]]);
+        }
+
+        $orders = $query->get();
+
+        return response()->json(OrderResource::collection($orders));
+//        } catch (Exception $e) {
+//            Log::error('Get orders admin error: ' . $e->getMessage());
+//            return response()->json(['error' => 'Server error'], 500);
+//        }
     }
 
     public function get_order_by_id_admin(string $id)
@@ -417,10 +449,25 @@ class CartController extends Controller
             ]);
 
             $info = $order->info;
+            $old_status = $info['status'];
             $info['status'] = $validated["status"];
             $order->update([
                 'info' => $info
             ]);
+
+            // Log
+            AdminLogs::query()->create([
+                "type" => "order_processing",
+                "action" => "status_change",
+                "data" => [
+                    "order_id" => $id,
+                    "info" => $info,
+                    "old_status" => $old_status,
+                    "new_status" => $validated["status"],
+                    "timestamp" => time()
+                ]
+            ]);
+
             return response()->json(OrderResource::make($order));
         } catch (Exception $e) {
             Log::error('Update order error: ' . $e->getMessage());

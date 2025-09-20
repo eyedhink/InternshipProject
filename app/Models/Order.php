@@ -3,16 +3,21 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Morilog\Jalali\Jalalian;
 
 class Order extends Model
 {
     protected $fillable = [
         'info',
-        'order_submitted_at'
+        'date'
     ];
 
     protected $casts = [
         'info' => 'array',
-        'order_submitted_at' => 'datetime'
     ];
+
+    public function getDateShamsiAttribute(): string
+    {
+        return Jalalian::forge($this->date)->format('Y/m/d');
+    }
 }

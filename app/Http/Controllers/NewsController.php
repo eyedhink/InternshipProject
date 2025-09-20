@@ -45,6 +45,13 @@ class NewsController extends Controller
         return response()->json(NewsResource::make($news));
     }
 
+    public function destroy(string $id)
+    {
+        $news = News::query()->findOrFail($id);
+        Storage::disk('public')->delete($news->image);
+        $news->delete();
+    }
+
     public function get_by_id(string $id)
     {
         $news = News::query()->findOrFail($id);

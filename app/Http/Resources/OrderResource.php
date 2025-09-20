@@ -10,12 +10,15 @@ class OrderResource extends BaseResource
     {
         $attributes = parent::toArray($request);
 
-        // Merge the info field with the main response
         if (isset($attributes['info']) && is_array($attributes['info'])) {
             $attributes = array_merge($attributes, $attributes['info']);
             unset($attributes['info']);
         }
 
-        return $attributes;
+        $customFields = [
+            "date" => $this->date_shamsi
+        ];
+
+        return array_merge($attributes, $customFields);
     }
 }
