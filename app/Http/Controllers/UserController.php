@@ -6,6 +6,7 @@ use App\Http\Resources\UserResource;
 use App\Models\AdminLogs;
 use App\Models\History;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -16,23 +17,23 @@ class UserController extends Controller
     /**
      * @throws ValidationException
      */
-    public function login(Request $request)
+    public function login(Request $request): JsonResponse
     {
-        $request->validate([
-            'name' => 'required|string',
-            'password' => 'required|string',
-            'email' => 'sometimes|string|email|unique:users',
-            'phone_number' => 'sometimes|string',
-            'wallet_balance' => 'sometimes|integer',
-            'otp' => 'sometimes|string',
-            'otp_expires_at' => 'sometimes|string',
-            'email_verified_at' => 'sometimes|string',
-            'should_change_password' => 'sometimes|boolean',
+        $validated = $request->validate([
+            'name' => ['required', 'string'],
+            'password' => ['required', 'string'],
+            'email' => ['sometimes', 'string', 'email', 'unique:users'],
+            'phone_number' => ['sometimes', 'string'],
+            'wallet_balance' => ['sometimes', 'integer'],
+            'otp' => ['sometimes', 'string'],
+            'otp_expires_at' => ['sometimes', 'string'],
+            'email_verified_at' => ['sometimes', 'string'],
+            'should_change_password' => ['sometimes', 'boolean'],
         ]);
 
-        $user = User::where('name', $request->name)->first();
+        $user = User::query()->firstWhere('name', $validated["name"]);
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (!$user || !Hash::check($validated['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'name' => ['The provided credentials are incorrect.'],
             ]);
@@ -56,22 +57,22 @@ class UserController extends Controller
         ]);
     }
 
-    public function signup(Request $request)
+    public function signup(Request $request): JsonResponse
     {
-        $request->validate([
-            'name' => 'required|string',
-            'password' => 'required|string',
-            'email' => 'required|string|email|unique:users',
-            'phone_number' => 'required|string',
+        $validated = $request->validate([
+            'name' => ['required', 'string'],
+            'password' => ['required', 'string'],
+            'email' => ['required', 'string', 'email', 'unique:users'],
+            'phone_number' => ['required', 'string'],
         ]);
 
         $otp = rand(100000, 999999);
 
-        $user = User::create([
-            'name' => $request->name,
-            'password' => Hash::make($request->password),
-            'email' => $request->email,
-            'phone_number' => $request->phone_number,
+        $user = User::query()->create([
+            'name' => $validated["name"],
+            'password' => $validated["password"],
+            'email' => $validated["email"],
+            'phone_number' => $validated["phone_number"],
             'wallet_balance' => 0,
             'otp' => $otp,
             'otp_expires_at' => now()->addMinutes(30),
@@ -94,15 +95,18 @@ class UserController extends Controller
         return response()->json(UserResource::make($user));
     }
 
-    public function verifyEmail(Request $request)
+    public function verifyEmail(Request $request): JsonResponse
     {
-        $user = $request->user('sanctum');
+        $user = $request->user();
+        $validated = $request->validate([
+            "otp" => ['required', 'string'],
+        ]);
 
         if (!$user) {
             return response()->json(["error" => "Invalid or expired token"], 401);
         }
 
-        if ($user->otp != $request->otp) {
+        if ($user->otp != $validated["otp"]) {
             return response()->json(["error" => "Invalid or expired otp"], 401);
         }
 
@@ -125,7 +129,7 @@ class UserController extends Controller
         return response()->json(["message" => "Email verified successfully"]);
     }
 
-    public function getByToken(Request $request)
+    public function getByToken(Request $request): JsonResponse
     {
         $token = $request->bearerToken();
         if (!$token) {
@@ -133,18 +137,18 @@ class UserController extends Controller
         }
 
         $user_id = DB::table('personal_access_tokens')->find(explode("|", $token)[0])->tokenable_id;
-        $user = User::find($user_id);
+        $user = User::query()->find($user_id);
 
         return response()->json(UserResource::make($user));
     }
 
-    public function update_info(Request $request)
+    public function update_info(Request $request): JsonResponse
     {
-        $user = $request->user('sanctum');
+        $user = $request->user();
         $validated = $request->validate([
-            'name' => 'sometimes|string',
-            'email' => 'sometimes|string|email|unique:users',
-            'phone_number' => 'sometimes|string',
+            'name' => 'sometimes', 'string',
+            'email' => 'sometimes', 'string', 'email', 'unique:users',
+            'phone_number' => 'sometimes', 'string',
         ]);
         $old_name = $user->name;
         $old_email = $user->email;
@@ -176,14 +180,14 @@ class UserController extends Controller
         return response()->json(UserResource::make($user));
     }
 
-    public function update(string $id, Request $request)
+    public function update(string $id, Request $request): JsonResponse
     {
         $user = User::query()->find($id);
         $validated = $request->validate([
-            'name' => 'sometimes|string',
-            'email' => 'sometimes|string|email|unique:users',
-            'phone_number' => 'sometimes|string',
-            'wallet_balance' => 'sometimes|integer',
+            'name' => ['sometimes', 'string'],
+            'email' => ['sometimes', 'string', 'email', 'unique:users'],
+            'phone_number' => ['sometimes', 'string'],
+            'wallet_balance' => ['sometimes', 'integer'],
         ]);
         if (!$user) {
             return response()->json(["error" => "User not found"], 401);
@@ -212,20 +216,20 @@ class UserController extends Controller
         return response()->json(UserResource::make($user));
     }
 
-    public function changePassword(string $id, Request $request)
+    public function changePassword(string $id, Request $request): JsonResponse
     {
         $user = User::query()->find($id);
 
         $validated = $request->validate([
-            'current_password' => !$user->should_change_password ? 'required|string' : "sometimes|string",
-            'new_password' => 'required|string',
+            'current_password' => !$user->should_change_password ? ['required', 'string'] : ["sometimes", "string"],
+            'new_password' => ['required', 'string'],
         ]);
 
         if (!$user->should_change_password && !Hash::check($validated['current_password'], $user->password)) {
             return response()->json(["error" => "Invalid current password"], 401);
         }
 
-        $user->password = Hash::make($validated['new_password']);
+        $user->password = $validated['new_password'];
         $user->should_change_password = false;
         $user->save();
 
@@ -245,10 +249,10 @@ class UserController extends Controller
         return response()->json(UserResource::make($user));
     }
 
-    public function get(Request $request)
+    public function get(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'search' => 'sometimes|string',
+            'search' => ['sometimes', 'string'],
         ]);
         $query = User::with('addresses', 'cart', 'history');
         if (isset($validated['search'])) {
@@ -258,7 +262,7 @@ class UserController extends Controller
         return response()->json(UserResource::collection($users));
     }
 
-    public function get_by_id(string $id)
+    public function get_by_id(string $id): JsonResponse
     {
         $user = User::with('addresses', 'cart', 'history')->findOrFail($id);
         return response()->json(UserResource::make($user));

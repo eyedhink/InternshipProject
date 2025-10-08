@@ -13,20 +13,21 @@ use App\Models\History;
 use App\Models\Order;
 use App\Models\Product;
 use Exception;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class CartController extends Controller
 {
-    public function add_to_cart(Request $request)
+    public function add_to_cart(Request $request): JsonResponse
     {
         try {
             $validated = $request->validate([
-                "product_id" => "required|exists:products,id",
-                "quantity" => "required|integer|not_in:0",
+                "product_id" => ["required", "exists:products,id"],
+                "quantity" => ["required", "integer|not_in:0"],
             ]);
 
-            $user = $request->user('sanctum');
+            $user = $request->user();
             $product = Product::query()->findOrFail($validated["product_id"]);
 
             if ($validated['quantity'] > 0 && $validated["quantity"] > $product->stock) {
@@ -34,8 +35,7 @@ class CartController extends Controller
             }
 
             $cartItem = Cart::query()->where('user_id', $user->id)
-                ->where('product_id', $validated["product_id"])
-                ->first();
+                ->firstWhere('product_id', $validated["product_id"]);
 
             if ($cartItem) {
                 $newQuantity = $cartItem->quantity + $validated["quantity"];
@@ -70,14 +70,13 @@ class CartController extends Controller
         }
     }
 
-    public function remove_from_cart(string $id, Request $request)
+    public function remove_from_cart(string $id, Request $request): JsonResponse
     {
         try {
-            $user = $request->user('sanctum');
+            $user = $request->user();
 
             $cartItem = Cart::query()->where('user_id', $user->id)
-                ->where('product_id', $id)
-                ->first();
+                ->firstWhere('product_id', $id);
 
             if (!$cartItem) {
                 return response()->json(['error' => 'Item not found in cart'], 404);
@@ -92,14 +91,14 @@ class CartController extends Controller
         }
     }
 
-    public function apply_discount(Request $request)
+    public function apply_discount(Request $request): JsonResponse
     {
         try {
             $validated = $request->validate([
-                'discount_code' => 'required|exists:discounts,code'
+                'discount_code' => ['required', 'exists:discounts,code']
             ]);
 
-            $discount = Discount::query()->where('code', $validated["discount_code"])->first();
+            $discount = Discount::query()->firstWhere('code', $validated["discount_code"]);
 
             if ($discount->expires_at && $discount->expires_at < now()) {
                 return response()->json(["error" => "Discount has expired"], 400);
@@ -117,10 +116,10 @@ class CartController extends Controller
         }
     }
 
-    public function set_address(Request $request, string $id)
+    public function set_address(Request $request, string $id): JsonResponse
     {
         try {
-            $user = $request->user('sanctum');
+            $user = $request->user();
             $address = Address::query()->findOrFail($id);
 
             if ($address->user_id !== $user->id) {
@@ -136,19 +135,19 @@ class CartController extends Controller
         }
     }
 
-    public function get_cart(Request $request)
+    public function get_cart(Request $request): JsonResponse
     {
         try {
-            $user = $request->user('sanctum');
+            $user = $request->user();
             $cartItems = $user->cart()->with('product.subcategory.parent')->get();
 
-            $formattedItems = $cartItems->map(function ($item) {
-                return [
+            $formattedItems = $cartItems
+                ->map(fn($item) => [
                     'product_id' => $item->product_id,
                     'quantity' => $item->quantity,
                     'product' => ProductResource::make($item->product)
-                ];
-            })->toArray();
+                ])
+                ->toArray();
 
             return response()->json([
                 'user_id' => $user->id,
@@ -160,27 +159,26 @@ class CartController extends Controller
         }
     }
 
-    public function submit_order(Request $request)
+    public function submit_order(Request $request): JsonResponse
     {
         try {
             $validated = $request->validate([
-                'address_id' => 'required|exists:addresses,id',
-                'payment_method' => 'sometimes|in:wallet,cash',
-                'discount_code' => 'sometimes|string|exists:discounts,code'
+                'address_id' => ['required', 'exists:addresses,id'],
+                'payment_method' => ['sometimes', 'in:wallet,cash'],
+                'discount_code' => ['sometimes', 'string', 'exists:discounts,code']
             ]);
 
             if (!isset($validated['payment_method'])) {
                 $validated['payment_method'] = 'wallet';
             }
 
-            $user = $request->user('sanctum');
+            $user = $request->user();
             $cartItems = $user->cart()->with('product')->get();
 
             if ($cartItems->isEmpty()) {
                 return response()->json(["error" => "Cart is empty"]);
             }
             $before_discount_amount = 0;
-            $productsInfo = [];
 
             foreach ($cartItems as $item) {
                 if (!$item->product || $item->quantity > $item->product->stock) {
@@ -188,18 +186,13 @@ class CartController extends Controller
                 }
 
                 $before_discount_amount += $item->product->price * $item->quantity;
-
-                $productsInfo[] = [
-                    'product' => new ProductResource($item->product),
-                    'quantity' => $item->quantity
-                ];
             }
 
             $total_amount = $before_discount_amount;
             $discountInfo = null;
 
             if (!empty($validated['discount_code'])) {
-                $discount = Discount::query()->where('code', $validated['discount_code'])->first();
+                $discount = Discount::query()->firstWhere('code', $validated['discount_code']);
 
                 if ($discount) {
                     if ($discount->expires_at && $discount->expires_at < now()) {
@@ -363,10 +356,10 @@ class CartController extends Controller
         }
     }
 
-    public function get_orders(Request $request)
+    public function get_orders(Request $request): JsonResponse
     {
         try {
-            $user = $request->user('sanctum');
+            $user = $request->user();
             $orders = Order::query()->whereRaw('JSON_EXTRACT(info, "$.user.id") = ?', [$user->id])->get();
 
             return response()->json(OrderResource::collection($orders));
@@ -376,10 +369,10 @@ class CartController extends Controller
         }
     }
 
-    public function get_order_by_id(string $id, Request $request)
+    public function get_order_by_id(string $id, Request $request): JsonResponse
     {
         try {
-            $user = $request->user('sanctum');
+            $user = $request->user();
             $order = Order::query()->findOrFail($id);
             if ($order->info['user']['id'] != $user->id) {
                 return response()->json(['error' => 'Order not found'], 404);
@@ -392,60 +385,59 @@ class CartController extends Controller
         }
     }
 
-    public function get_orders_admin(Request $request)
-    {
-//        try {
-        $validated = $request->validate([
-            'from_created_at' => 'sometimes|integer:',
-            'to_created_at' => 'sometimes|integer:',
-            'user_id' => 'sometimes|integer|exists:users,id',
-            'status' => 'sometimes|string|in:processing,shipped',
-        ]);
-
-        $query = Order::query();
-
-        if ($request->has('from_created_at') && !empty($validated["from_created_at"])) {
-            $query->where('date', '>=', $validated["from_created_at"]);
-        }
-
-        if ($request->has('to_created_at') && !empty($validated["to_created_at"])) {
-            $query->where('date', '<=', $validated["to_created_at"]);
-        }
-
-        if ($request->has('user_id') && !empty($validated["user_id"])) {
-            $query->whereRaw('JSON_EXTRACT(info, "$.user.id") = ?', [$validated["user_id"]]);
-        }
-
-        if ($request->has('status') && !empty($validated["status"])) {
-            $query->whereRaw('JSON_EXTRACT(info, "$.status") = ?', [$validated["status"]]);
-        }
-
-        $orders = $query->get();
-
-        return response()->json(OrderResource::collection($orders));
-//        } catch (Exception $e) {
-//            Log::error('Get orders admin error: ' . $e->getMessage());
-//            return response()->json(['error' => 'Server error'], 500);
-//        }
-    }
-
-    public function get_order_by_id_admin(string $id)
+    public function get_orders_admin(Request $request): JsonResponse
     {
         try {
-            $order = Order::query()->findOrFail($id);
-            return response()->json(OrderResource::make($order));
+            $validated = $request->validate([
+                'from_created_at' => ['sometimes', 'integer'],
+                'to_created_at' => ['sometimes', 'integer'],
+                'user_id' => ['sometimes', 'integer', 'exists:users,id'],
+                'status' => ['sometimes', 'string', 'in:processing,shipped'],
+            ]);
+
+            $query = Order::query();
+
+            if ($request->has('from_created_at') && !empty($validated["from_created_at"])) {
+                $query->where('date', '>=', $validated["from_created_at"]);
+            }
+
+            if ($request->has('to_created_at') && !empty($validated["to_created_at"])) {
+                $query->where('date', '<=', $validated["to_created_at"]);
+            }
+
+            if ($request->has('user_id') && !empty($validated["user_id"])) {
+                $query->whereRaw('JSON_EXTRACT(info, "$.user.id") = ?', [$validated["user_id"]]);
+            }
+
+            if ($request->has('status') && !empty($validated["status"])) {
+                $query->whereRaw('JSON_EXTRACT(info, "$.status") = ?', [$validated["status"]]);
+            }
+
+            $orders = $query->get();
+
+            return response()->json(OrderResource::collection($orders));
+        } catch (Exception $e) {
+            Log::error('Get orders admin error: ' . $e->getMessage());
+            return response()->json(['error' => 'Server error'], 500);
+        }
+    }
+
+    public function get_order_by_id_admin(string $id): JsonResponse
+    {
+        try {
+            return response()->json(OrderResource::make(Order::query()->findOrFail($id)));
         } catch (Exception $e) {
             Log::error('Get order by ID admin error: ' . $e->getMessage());
             return response()->json(['error' => 'Server error'], 500);
         }
     }
 
-    public function update_order(Request $request, string $id)
+    public function update_order(Request $request, string $id): JsonResponse
     {
         try {
             $order = Order::query()->findOrFail($id);
             $validated = $request->validate([
-                'status' => 'required|string|in:processing,shipped',
+                'status' => ['required', 'string', 'in:processing,shipped'],
             ]);
 
             $info = $order->info;

@@ -28,6 +28,10 @@ class User extends Authenticatable implements MustVerifyEmail
         'should_change_password'
     ];
 
+    protected $casts = [
+        'password' => 'hashed',
+    ];
+
     protected $hidden = [
         'password',
         'otp',

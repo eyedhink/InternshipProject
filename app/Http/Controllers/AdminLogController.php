@@ -4,16 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\AdminLogsResource;
 use App\Models\AdminLogs;
+use Illuminate\Http\JsonResponse;
 
 class AdminLogController extends Controller
 {
-    public function get()
+    public function get(): JsonResponse
     {
         $validated = request()->validate([
-            "from_date" => "sometimes|integer",
-            "to_date" => "sometimes|integer",
-            "action" => "sometimes|string",
-            "type" => "sometimes|string",
+            "from_date" => ["sometimes", "integer"],
+            "to_date" => ["sometimes", "integer"],
+            "action" => ["sometimes", "integer"],
+            "type" => ["sometimes", "integer"],
         ]);
         $query = AdminLogs::query();
         if (isset($validated["from_date"])) {
@@ -33,7 +34,7 @@ class AdminLogController extends Controller
         return response()->json(AdminLogsResource::collection($logs));
     }
 
-    public function get_by_id(string $id)
+    public function get_by_id(string $id): JsonResponse
     {
         return response()->json(AdminLogsResource::make(AdminLogs::query()->find($id)));
     }

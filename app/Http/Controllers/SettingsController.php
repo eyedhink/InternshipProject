@@ -4,18 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\SettingsResource;
 use App\Models\Settings;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class SettingsController extends Controller
 {
-    public function update_contact_us(Request $request)
+    public function update_contact_us(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'instagram' => 'sometimes|string',
-            'email' => 'sometimes|string|email',
-            'phone_number' => 'sometimes|string',
-            'address' => 'sometimes|string',
+            'instagram' => ['sometimes', 'string'],
+            'email' => ['sometimes', 'string', 'email'],
+            'phone_number' => ['sometimes', 'string'],
+            'address' => ['sometimes', 'string'],
         ]);
         if ($request->has('instagram')) {
             Settings::query()->firstWhere('key', 'contact_us_instagram')->update(['value' => $validated['instagram']]);
@@ -32,16 +33,16 @@ class SettingsController extends Controller
         return response()->json(['message' => 'Contact us updated successfully']);
     }
 
-    public function get_contact_us()
+    public function get_contact_us(): JsonResponse
     {
         return response()->json(SettingsResource::collection(Settings::query()->where('key', "LIKE", 'contact_us%')->get()));
     }
 
-    public function update_about_us(Request $request)
+    public function update_about_us(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'text' => 'sometimes|string',
-            'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif,svg,webp',
+            'text' => ['sometimes', 'string'],
+            'image' => ['sometimes', 'image', 'mimes:jpeg,png,jpg,gif,svg,webp'],
         ]);
         if ($request->has('text')) {
             Settings::query()->updateOrCreate(
@@ -69,12 +70,12 @@ class SettingsController extends Controller
         return response()->json(['message' => 'About us updated successfully']);
     }
 
-    public function get_about_us()
+    public function get_about_us(): JsonResponse
     {
         return response()->json(SettingsResource::collection(Settings::query()->where('key', "LIKE", 'about_us%')->get()));
     }
 
-    public function sub_info()
+    public function sub_info(): JsonResponse
     {
         $contact_us = SettingsResource::collection(Settings::query()->where('key', "LIKE", 'contact_us%')->get());
         return response()->json(['contact_us' => $contact_us]);

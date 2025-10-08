@@ -2,19 +2,10 @@
 
 namespace Database\Seeders;
 
-use App\Models\Address;
 use App\Models\Admin;
-use App\Models\Cart;
-use App\Models\Category;
-use App\Models\Discount;
-use App\Models\Product;
 use App\Models\Settings;
-use App\Models\Slide;
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
-
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 
 class DatabaseSeeder extends Seeder
 {
@@ -25,11 +16,11 @@ class DatabaseSeeder extends Seeder
     {
         Admin::query()->create([
             'name' => 'Admin',
-            'password' => Hash::make('password'),
+            'password' => 'password',
         ]);
         User::query()->create([
             'name' => 'User',
-            'password' => Hash::make('password'),
+            'password' => 'password',
             'email' => 'user@user.com',
             'phone_number' => '0123456789',
             'email_verified_at' => now(),

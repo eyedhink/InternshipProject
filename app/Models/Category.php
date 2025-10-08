@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -31,30 +32,23 @@ class Category extends Model
         return $this->hasMany(Product::class, 'subcategory_id');
     }
 
-    // Efficient method to get all products from this category and all subcategories
-    public function getAllProductsAttribute()
+    public function getAllProductsAttribute(): Collection
     {
-        // Get all descendant category IDs using a single query
         $categoryIds = $this->getAllDescendantIds($this->id);
-        $categoryIds[] = $this->id; // Include the current category
+        $categoryIds[] = $this->id;
 
-        // Return products from all these categories
-        return Product::whereIn('subcategory_id', $categoryIds)->get();
+        return Product::query()->whereIn('subcategory_id', $categoryIds)->get();
     }
 
-    // Efficient method to get all descendant category IDs
     protected function getAllDescendantIds($categoryId): array
     {
-        // Use a recursive CTE if your database supports it (MySQL 8.0+, PostgresSQL, SQL Server)
         if (config('database.default') === 'mysql' || config('database.default') === 'pgsql') {
             return $this->getDescendantIdsWithCte($categoryId);
         }
 
-        // Fallback for databases that don't support CTEs (like older MySQL versions)
         return $this->getDescendantIdsWithLoop($categoryId);
     }
 
-    // Using CTE for databases that support it (more efficient)
     protected function getDescendantIdsWithCte($categoryId): array
     {
         $query = DB::select("
@@ -73,14 +67,13 @@ class Category extends Model
         return array_column($query, 'id');
     }
 
-    // Fallback method for databases that don't support CTEs
     protected function getDescendantIdsWithLoop($categoryId): array
     {
         $descendantIds = [];
         $currentLevelIds = [$categoryId];
 
         do {
-            $nextLevelIds = Category::whereIn('parent_id', $currentLevelIds)
+            $nextLevelIds = Category::query()->whereIn('parent_id', $currentLevelIds)
                 ->pluck('id')
                 ->toArray();
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Admin;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -12,11 +13,11 @@ class AdminController extends Controller
     /**
      * @throws ValidationException
      */
-    public function login(Request $request)
+    public function login(Request $request): JsonResponse
     {
         $request->validate([
-            'name' => 'required|string',
-            'password' => 'required|string',
+            'name' => ['required', 'string'],
+            'password' => ['required', 'string'],
         ]);
 
         $admin = Admin::query()->firstWhere('name', $request->name);

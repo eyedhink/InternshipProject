@@ -1,6 +1,5 @@
 <?php
 
-use Illuminate\Auth\AuthenticationException;
 use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -25,7 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->report(function (AuthenticationException $e) {
+        $exceptions->report(function () {
             return response()->json(['error' => 'Unauthenticated.'], 401);
         })->stop();
     })->create();

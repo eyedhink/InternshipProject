@@ -5,17 +5,18 @@ namespace App\Http\Controllers;
 use App\Http\Resources\AddressResource;
 use App\Models\Address;
 use App\Models\AdminLogs;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AddressController extends Controller
 {
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'user_id' => 'required|integer|exists:users,id',
-            'description' => 'required|string',
-            'province' => 'required|string',
-            'city' => 'required|string',
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'description' => ['required', 'string'],
+            'province' => ['required', 'string'],
+            'city' => ['required', 'string'],
         ]);
         $address = Address::query()->create($validated);
 
@@ -35,20 +36,21 @@ class AddressController extends Controller
         return response()->json(AddressResource::make($address));
     }
 
-    public function getById(Request $request)
+    public function getById(Request $request): JsonResponse
     {
-        $user = $request->user('sanctum');
+        $user = $request->user();
         return response()->json(AddressResource::collection($user->addresses));
     }
 
-    public function update(Request $request, string $id)
+    public function update(Request $request, string $id): JsonResponse
     {
-        $address = Address::query()->findOrFail($id);
+
         $validated = $request->validate([
-            'description' => 'sometimes|string',
-            'province' => 'sometimes|string',
-            'city' => 'sometimes|string',
+            'description' => ['sometimes', 'string'],
+            'province' => ['sometimes', 'string'],
+            'city' => ['sometimes', 'string']
         ]);
+        $address = Address::query()->findOrFail($id);
         $old_description = $address->description;
         $old_province = $address->province;
         $old_city = $address->city;
@@ -72,13 +74,12 @@ class AddressController extends Controller
             ]
         ]);
 
-        return response()->json(AddressResource::make($address));
+        return response()->json(["message" => "Address deleted successfully"]);
     }
 
-    public function destroy(string $id)
+    public function destroy(string $id): JsonResponse
     {
         $address = Address::query()->findOrFail($id);
-
         // Log
         AdminLogs::query()->create([
             "type" => "address_management",
@@ -92,14 +93,17 @@ class AddressController extends Controller
             ]
         ]);
 
-        $address->delete();
+        Address::query()
+            ->where('id', $id)
+            ->delete();
+
         return response()->json(["message" => "address deleted successfully"]);
     }
 
-    public function get(Request $request)
+    public function get(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'user_id' => 'sometimes|integer|exists:users,id',
+            'user_id' => ['sometimes', 'integer', 'exists:users,id'],
         ]);
         $query = Address::with('user');
         if ($request->has('user_id')) {
