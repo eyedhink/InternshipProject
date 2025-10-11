@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('news', function (Blueprint $table) {
             $table->id();
-            $table->string('image');
+            $table->json('image');
             $table->string('title');
             $table->longText('text');
             $table->boolean('is_important')->default(false);

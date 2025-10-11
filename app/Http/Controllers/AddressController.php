@@ -104,12 +104,26 @@ class AddressController extends Controller
     {
         $validated = $request->validate([
             'user_id' => ['sometimes', 'integer', 'exists:users,id'],
+            'page' => ['required', 'integer', 'min:1'],
+            'limit' => ["sometimes", "integer", "min:1"],
         ]);
         $query = Address::with('user');
         if ($request->has('user_id')) {
             $query->where('user_id', $validated['user_id']);
         }
-        $addresses = $query->get();
-        return response()->json(AddressResource::collection($addresses));
+        $limit = $validated['limit'] ?? 10;
+        $addresses = $query->paginate($limit, page: $validated['page']);
+        $total_pages = ceil($addresses->total() / $limit);
+        $pagination_info = [
+            "total_items" => $addresses->total(),
+            "total_pages" => $total_pages,
+            "current_page" => $validated["page"],
+            "per_page" => $limit,
+            "has_next_page" => ($total_pages - $validated['page']) > 0,
+            "has_previous_page" => ($validated['page'] - 1) > 0,
+            "next_page" => $validated['page'] + 1,
+            "previous_page" => $validated['page'] - 1
+        ];
+        return response()->json(["data" => AddressResource::collection($addresses), "pagination_info" => $pagination_info]);
     }
 }
