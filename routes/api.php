@@ -97,3 +97,8 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/logs', [AdminLogController::class, "get"]);
     Route::get('/admin/log/{id}', [AdminLogController::class, "get_by_id"]);
 });
+
+// TODO: Make utils
+// TODO: Make images a JSON with url, width, height, size, alt
+// TODO: Add page and limit to all get methods
+// TODO: Commit all changes to github

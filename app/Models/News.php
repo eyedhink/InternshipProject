@@ -13,4 +13,7 @@ class News extends Model
         'text',
         'is_important',
     ];
+    protected $casts = [
+        "image" => "array",
+    ];
 }
